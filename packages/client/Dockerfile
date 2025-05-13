@@ -11,6 +11,7 @@ COPY package*.json ./
 
 # Installs all node packages
 RUN npm install
+RUN npm install -g webpack webpack-cli webpack-dev-server
 
 # Copies everything over to Docker environment
 COPY . .
