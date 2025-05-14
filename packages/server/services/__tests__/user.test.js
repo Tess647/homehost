@@ -1,7 +1,7 @@
 // packages/server/services/__tests__/user.test.js
-const { getUserById, getUserByEmail, createUser } = require('../user');
+const { getUserById, getUserByEmail, createUser, verifyCredentials } = require('../user');
 const { PrismaClient } = require('@prisma/client');
-const { validatePasswordStrength, hashPassword } = require('../../services/auth');
+const { validatePasswordStrength, hashPassword, verifyPassword } = require('../../services/auth');
 
 // Mock the Prisma Client
 jest.mock('@prisma/client', () => {
@@ -22,7 +22,8 @@ jest.mock('@prisma/client', () => {
 // Mock the auth service
 jest.mock('../../services/auth', () => ({
   validatePasswordStrength: jest.fn(),
-  hashPassword: jest.fn()
+  hashPassword: jest.fn(),
+  verifyPassword: jest.fn()
 }));
 
 beforeEach(() => {
@@ -318,6 +319,114 @@ describe('User Service', () => {
       
       // Verify the console.error was called with the database error
       expect(console.error).toHaveBeenCalledWith('Error creating user:', databaseError);
+    });
+  });
+
+  describe('verifyCredentials', () => {
+    it('should successfully verify credentials and return user without password', async () => {
+      // Arrange
+      const mockUser = {
+        id: 1,
+        email: 'test@example.com',
+        username: 'testuser',
+        password: 'hashed_password', // This should be excluded in the result
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      verifyPassword.mockResolvedValue(true); // Password verification succeeds
+
+      // Act
+      const result = await verifyCredentials('test@example.com', 'correct_password');
+
+      // Assert
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+        where: {
+          email: {
+            equals: 'test@example.com',
+            mode: 'insensitive'
+          }
+        }
+      });
+      
+      expect(verifyPassword).toHaveBeenCalledWith('correct_password', 'hashed_password');
+      
+      // Check result format
+      expect(result).toEqual({
+        id: mockUser.id,
+        email: mockUser.email,
+        username: mockUser.username,
+        createdAt: mockUser.createdAt,
+        updatedAt: mockUser.updatedAt
+      });
+      
+      // Ensure password is not included
+      expect(result).not.toHaveProperty('password');
+    });
+
+    it('should throw "Invalid credentials" when user does not exist', async () => {
+      // Arrange
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      
+      // Act & Assert
+      await expect(verifyCredentials('nonexistent@example.com', 'any_password')).rejects.toThrow('Invalid credentials');
+      expect(verifyPassword).not.toHaveBeenCalled(); // Password verification should not be attempted
+    });
+
+    it('should throw "Invalid credentials" when password is incorrect', async () => {
+      // Arrange
+      const mockUser = {
+        id: 1,
+        email: 'test@example.com',
+        username: 'testuser',
+        password: 'hashed_password',
+      };
+      
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      verifyPassword.mockResolvedValue(false); // Password verification fails
+      
+      // Act & Assert
+      await expect(verifyCredentials('test@example.com', 'wrong_password')).rejects.toThrow('Invalid credentials');
+      expect(verifyPassword).toHaveBeenCalledWith('wrong_password', 'hashed_password');
+    });
+
+    it('should normalize email to lowercase for case-insensitive lookup', async () => {
+      // Arrange
+      const mockUser = {
+        id: 1,
+        email: 'test@example.com',
+        username: 'testuser',
+        password: 'hashed_password',
+      };
+      
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      verifyPassword.mockResolvedValue(true);
+      
+      // Act
+      await verifyCredentials('TEST@EXAMPLE.COM', 'correct_password');
+      
+      // Assert
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+        where: {
+          email: {
+            equals: 'test@example.com',
+            mode: 'insensitive'
+          }
+        }
+      });
+    });
+
+    it('should throw a generic error when database query fails', async () => {
+      // Arrange
+      const databaseError = new Error('Database connection error');
+      mockPrisma.user.findFirst.mockRejectedValue(databaseError);
+      
+      // Act & Assert
+      await expect(verifyCredentials('test@example.com', 'any_password')).rejects.toThrow('Failed to verify credentials');
+      
+      // Verify the console.error was called with the database error
+      expect(console.error).toHaveBeenCalledWith('Error verifying credentials:', databaseError);
     });
   });
 });

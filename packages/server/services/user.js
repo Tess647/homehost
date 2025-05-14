@@ -1,6 +1,6 @@
 // packages/server/services/user.js
 const { PrismaClient } = require('@prisma/client');
-const { hashPassword, validatePasswordStrength } = require('./auth');
+const { hashPassword, validatePasswordStrength, verifyPassword } = require('./auth');
 
 const prisma = new PrismaClient();
 
@@ -122,8 +122,50 @@ async function createUser(email, username, password) {
   }
 }
 
+/**
+ * Verify user credentials (email and password)
+ * @param {string} email - User's email
+ * @param {string} password - User's password (plaintext)
+ * @returns {Promise<Object>} The user object without password if credentials are valid
+ * @throws {Error} If credentials are invalid or verification fails
+ */
+async function verifyCredentials(email, password) {
+  try {
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase();
+    
+    // Fetch the user with password for verification
+    const user = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: normalizedEmail,
+          mode: 'insensitive'
+        }
+      },
+    });
+    
+    // User not found or password verification failed
+    if (!user || !(await verifyPassword(password, user.password))) {
+      throw new Error('Invalid credentials');
+    }
+    
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  } catch (error) {
+    // Re-throw specific error for invalid credentials
+    if (error.message === 'Invalid credentials') {
+      throw error;
+    }
+    
+    console.error('Error verifying credentials:', error);
+    throw new Error('Failed to verify credentials');
+  }
+}
+
 module.exports = {
   getUserById,
   getUserByEmail,
   createUser,
+  verifyCredentials,
 };
