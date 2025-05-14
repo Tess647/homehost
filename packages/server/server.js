@@ -4,10 +4,12 @@ const express = require('express');
 const figlet = require('figlet');
 const bodyParser = require('body-parser');
 
-const app = express();
-const port = process.env.PORT || 5000;
 require('dotenv').config();
 require('./jobs').fileWatcher();
+
+const app = express();
+const port = process.env.PORT || 5000;
+
 
 // Serve the static files from the React app
 if (process.env.NODE_ENV == 'production') {

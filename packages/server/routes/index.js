@@ -39,6 +39,7 @@ const {
   externalSearch,
 } = require('../data');
 const { moveMovieFile, moveEpisodeFile, moveSongFile } = require('../models');
+const authController = require('../controller/authController');
 const router = express.Router();
 
 const readStreamMp4 = (req, res, file_path) => {
@@ -97,6 +98,11 @@ const readStreamMpeg = (req, res, file_path) => {
     fs.createReadStream(file_path).pipe(res);
   }
 };
+
+// Authentication routes
+router.post('/api/register', authController.register);
+router.post('/api/login', authController.login);
+router.post('/api/logout', authController.logout);
 
 router.get('/api/about', (req, res) => {
   res.json(getAbout());
