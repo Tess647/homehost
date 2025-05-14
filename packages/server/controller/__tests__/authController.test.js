@@ -3,8 +3,14 @@ const userService = require('../../services/user');
 const authService = require('../../services/auth');
 
 // Mock the services
-jest.mock('../../services/user');
-jest.mock('../../services/auth');
+jest.mock('../../services/user', () => ({
+  createUser: jest.fn(),
+  verifyCredentials: jest.fn()
+}));
+jest.mock('../../services/auth', () => ({
+  validatePasswordStrength: jest.fn(),
+  generateToken: jest.fn()
+}));
 
 describe('AuthController', () => {
   let req, res;
@@ -33,6 +39,9 @@ describe('AuthController', () => {
       valid: true,
       message: 'Password meets strength requirements'
     });
+    
+    // Setup mock for verifyCredentials method
+    userService.verifyCredentials = jest.fn();
 
     // Mock console.error globally for all tests
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -229,6 +238,148 @@ describe('AuthController', () => {
         expect(authService.generateToken).toHaveBeenCalledWith(mockUser.id);
         
         expect(res.status).toHaveBeenCalledWith(201);
+        expect(res.json).toHaveBeenCalledWith({
+          user: {
+            id: mockUser.id,
+            username: mockUser.username,
+            email: mockUser.email
+          },
+          token: mockToken
+        });
+      });
+    });
+  });
+  
+  describe('login', () => {
+    beforeEach(() => {
+      // Setup request object specifically for login tests
+      req = {
+        body: {
+          email: 'test@example.com',
+          password: 'Password123!'
+        }
+      };
+    });
+
+    describe('Validation Tests', () => {
+      test('should return 400 with errors when email is missing', async () => {
+        req.body.email = '';
+        
+        await authController.login(req, res);
+        
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+          errors: expect.arrayContaining([
+            expect.objectContaining({
+              field: 'email',
+              message: 'Email is required'
+            })
+          ])
+        });
+      });
+      
+      test('should return 400 with errors when email format is invalid', async () => {
+        req.body.email = 'invalid-email';
+        
+        await authController.login(req, res);
+        
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+          errors: expect.arrayContaining([
+            expect.objectContaining({
+              field: 'email',
+              message: 'Invalid email format'
+            })
+          ])
+        });
+      });
+      
+      test('should return 400 with errors when password is missing', async () => {
+        req.body.password = '';
+        
+        await authController.login(req, res);
+        
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+          errors: expect.arrayContaining([
+            expect.objectContaining({
+              field: 'password',
+              message: 'Password is required'
+            })
+          ])
+        });
+      });
+      
+      test('should return 400 with errors when both email and password are missing', async () => {
+        req.body.email = '';
+        req.body.password = '';
+        
+        await authController.login(req, res);
+        
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+          errors: expect.arrayContaining([
+            expect.objectContaining({ field: 'email' }),
+            expect.objectContaining({ field: 'password' })
+          ])
+        });
+        expect(res.json.mock.calls[0][0].errors.length).toBe(2);
+      });
+    });
+    
+    describe('Authentication Tests', () => {
+      test('should return 401 when credentials are invalid', async () => {
+        userService.verifyCredentials.mockRejectedValue(new Error('Invalid credentials'));
+        
+        await authController.login(req, res);
+        
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(res.json).toHaveBeenCalledWith({
+          errors: [{ field: 'general', message: 'Invalid email or password' }]
+        });
+      });
+      
+      test('should return 500 when an unexpected server error occurs', async () => {
+        userService.verifyCredentials.mockRejectedValue(new Error('Database error'));
+        
+        await authController.login(req, res);
+        
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({
+          errors: [{ field: 'general', message: 'Server error during login' }]
+        });
+        
+        // Verify error was logged
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Login error:',
+          expect.any(Error)
+        );
+      });
+      
+      test('should successfully authenticate user and return 200 with user data and token', async () => {
+        const mockUser = {
+          id: 1,
+          email: 'test@example.com',
+          username: 'testuser',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        const mockToken = 'jwt-token-123';
+        
+        userService.verifyCredentials.mockResolvedValue(mockUser);
+        authService.generateToken.mockReturnValue(mockToken);
+        
+        await authController.login(req, res);
+        
+        expect(userService.verifyCredentials).toHaveBeenCalledWith(
+          'test@example.com',
+          'Password123!'
+        );
+        
+        expect(authService.generateToken).toHaveBeenCalledWith(mockUser.id);
+        
+        expect(res.status).toHaveBeenCalledWith(200);
         expect(res.json).toHaveBeenCalledWith({
           user: {
             id: mockUser.id,

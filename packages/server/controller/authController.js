@@ -91,7 +91,71 @@ async function register(req, res) {
   }
 }
 
+/**
+ * Handles user login
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
+async function login(req, res) {
+  try {
+    const { email, password } = req.body;
+    const errors = [];
+
+    // Validate email
+    if (!email) {
+      errors.push({ field: 'email', message: 'Email is required' });
+    } else if (!isValidEmail(email)) {
+      errors.push({ field: 'email', message: 'Invalid email format' });
+    }
+
+    // Validate password
+    if (!password) {
+      errors.push({ field: 'password', message: 'Password is required' });
+    }
+
+    // Return validation errors if any
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+
+    try {
+      // Verify user credentials
+      const user = await userService.verifyCredentials(email, password);
+      
+      // Generate JWT token
+      const token = authService.generateToken(user.id);
+      
+      // Return successful response
+      return res.status(200).json({ 
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email
+        },
+        token
+      });
+    } catch (error) {
+      // Handle invalid credentials
+      if (error.message === 'Invalid credentials') {
+        return res.status(401).json({ 
+          errors: [{ field: 'general', message: 'Invalid email or password' }]
+        });
+      }
+      
+      // Re-throw other errors to be caught by the outer catch block
+      throw error;
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ 
+      errors: [{ field: 'general', message: 'Server error during login' }]
+    });
+  }
+}
+
 module.exports = {
   register,
+  login,
   isValidEmail // Exported for testing
 };
