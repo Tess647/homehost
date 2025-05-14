@@ -118,7 +118,7 @@ router.post('/register', authController.register);
 // });
 router.post('/login', authController.login);
 router.post('/logout', authController.logout);
-
+router.get('/api/me', authController.authenticate, authController.getProfile);
 
 
 router.get('/api/about', (req, res) => {
