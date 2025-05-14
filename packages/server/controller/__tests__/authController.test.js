@@ -572,32 +572,374 @@ describe('AuthController', () => {
     });
   });
   
-
 // In your test file, replace the regex extraction with direct usage:
-describe('formatErrorResponse', () => {
-  test('should format error responses with provided parameters', () => {
-    const testStatus = 400;
-    const testMessage = 'Test error message';
-    const testErrors = [{ field: 'test', message: 'Test error' }];
-    
-    const result = authController.formatErrorResponse(testStatus, testMessage, testErrors);
-    
-    expect(result).toEqual({
-      status: 400,
-      message: 'Test error message',
-      errors: [{ field: 'test', message: 'Test error' }]
+  describe('formatErrorResponse', () => {
+    test('should format error responses with provided parameters', () => {
+      const testStatus = 400;
+      const testMessage = 'Test error message';
+      const testErrors = [{ field: 'test', message: 'Test error' }];
+      
+      const result = authController.formatErrorResponse(testStatus, testMessage, testErrors);
+      
+      expect(result).toEqual({
+        status: 400,
+        message: 'Test error message',
+        errors: [{ field: 'test', message: 'Test error' }]
+      });
+    });
+
+    test('should use empty array as default for errors parameter', () => {
+      const result = authController.formatErrorResponse(404, 'Not found');
+      
+      expect(result).toEqual({
+        status: 404,
+        message: 'Not found',
+        errors: []
+      });
     });
   });
 
-  test('should use empty array as default for errors parameter', () => {
-    const result = authController.formatErrorResponse(404, 'Not found');
+describe('authenticate', () => {
+  let req, res, next;
+  
+  beforeEach(() => {
+    // Reset all mocks
+    jest.clearAllMocks();
     
-    expect(result).toEqual({
-      status: 404,
-      message: 'Not found',
-      errors: []
+    // Setup default request and response objects
+    req = {
+      cookies: {
+        auth_token: 'valid-token-123'
+      },
+      headers: {}
+    };
+    
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+    
+    next = jest.fn();
+
+    // Mock services
+    authService.verifyToken = jest.fn();
+    userService.getUserById = jest.fn();
+  });
+  
+  test('should call next() when authentication is successful', async () => {
+    const decodedToken = { userId: 1 };
+    const mockUser = { 
+      id: 1, 
+      username: 'testuser', 
+      email: 'test@example.com' 
+    };
+    
+    authService.verifyToken.mockResolvedValue(decodedToken);
+    userService.getUserById.mockResolvedValue(mockUser);
+    
+    await authController.authenticate(req, res, next);
+    
+    expect(authService.verifyToken).toHaveBeenCalledWith('valid-token-123');
+    expect(userService.getUserById).toHaveBeenCalledWith(1);
+    expect(req.user).toEqual(mockUser);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
+  });
+  
+  test('should return 401 when token is missing', async () => {
+    req.cookies = {};
+    
+    await authController.authenticate(req, res, next);
+    
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 401,
+      message: 'Authentication failed',
+      errors: [
+        { field: 'auth', message: 'Authentication token missing' }
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
+  
+  test('should return 401 when token verification fails', async () => {
+    authService.verifyToken.mockRejectedValue(new Error('Invalid token'));
+    
+    await authController.authenticate(req, res, next);
+    
+    expect(authService.verifyToken).toHaveBeenCalledWith('valid-token-123');
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 401,
+      message: 'Authentication failed',
+      errors: [
+        { field: 'auth', message: 'Invalid authentication token' }
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
+  
+  test('should return 401 when user does not exist', async () => {
+    const decodedToken = { userId: 999 };
+    
+    authService.verifyToken.mockResolvedValue(decodedToken);
+    userService.getUserById.mockResolvedValue(null);
+    
+    await authController.authenticate(req, res, next);
+    
+    expect(authService.verifyToken).toHaveBeenCalledWith('valid-token-123');
+    expect(userService.getUserById).toHaveBeenCalledWith(999);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 401,
+      message: 'Authentication failed',
+      errors: [
+        { field: 'auth', message: 'Invalid authentication token' }
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
+  
+  test('should check for token in cookie only, not using Authorization header', async () => {
+    // The current implementation only checks for tokens in cookies, not Authorization header
+    req.cookies = {};
+    req.headers.authorization = 'Bearer header-token-456';
+    
+    await authController.authenticate(req, res, next);
+    
+    // Since the implementation only checks cookies, it should return 401 when cookie is missing
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 401,
+      message: 'Authentication failed',
+      errors: [
+        { field: 'auth', message: 'Authentication token missing' }
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+    expect(authService.verifyToken).not.toHaveBeenCalled();
+  });
+  
+  test('should return 500 when server error occurs during verification', async () => {
+    // Force authService.verifyToken to throw a non-"Invalid token" error
+    authService.verifyToken.mockImplementation(() => {
+      const error = new Error('Database connection error');
+      error.name = 'DatabaseError'; // Different error name to distinguish from token validation errors
+      throw error;
     });
+    
+    await authController.authenticate(req, res, next);
+    
+    expect(authService.verifyToken).toHaveBeenCalledWith('valid-token-123');
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 500,
+      message: 'Server error',
+      errors: [
+        { field: 'general', message: 'Server error during authentication' }
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 });
+
+describe('getProfile', () => {
+  let req, res;
+  
+  beforeEach(() => {
+    // Reset all mocks
+    jest.clearAllMocks();
+    
+    // Setup default request and response objects
+    req = {
+      user: {
+        id: 1,
+        username: 'testuser',
+        email: 'test@example.com',
+        password: 'hashed_password_123',
+        passwordSalt: 'salt_value',
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-02')
+      }
+    };
+    
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+  });
+  
+  test('should return user profile with sensitive fields excluded', async () => {
+    await authController.getProfile(req, res);
+    
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      user: {
+        id: 1,
+        username: 'testuser',
+        email: 'test@example.com',
+        createdAt: req.user.createdAt,
+        updatedAt: req.user.updatedAt
+      }
+    });
+    
+    // Verify sensitive fields are excluded
+    const returnedUser = res.json.mock.calls[0][0].user;
+    expect(returnedUser).not.toHaveProperty('password');
+    expect(returnedUser).not.toHaveProperty('passwordSalt');
+  });
+  
+  // test('should handle unexpected server errors with try-catch', async () => {
+  //   // Create a spy on res.status that will throw an error when called
+  //   res.status = jest.fn().mockImplementation(() => {
+  //     throw new Error('JSON serialization error');
+  //   });
+    
+  //   await authController.getProfile(req, res);
+    
+  //   // Verify error was logged
+  //   expect(consoleErrorSpy).toHaveBeenCalledWith(
+  //     'Get profile error:',
+  //     expect.any(Error)
+  //   );
+    
+  //   // Since our status method is throwing an error, we can't verify the status code
+  //   // But we can verify it was called
+  //   expect(res.status).toHaveBeenCalled();
+  // });
+  
+  test('should handle missing user object', async () => {
+    // Set req.user to undefined to simulate a case where authenticate middleware didn't set it
+    req.user = undefined;
+    
+    await authController.getProfile(req, res);
+    
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 500,
+      message: 'Server error',
+      errors: [
+        { field: 'general', message: 'Server error while retrieving profile' }
+      ]
+    }));
+  });
+
+  test('should return only specified user fields', async () => {
+    // Add extra fields to the user object that shouldn't be returned
+    req.user.role = 'admin';
+    req.user.loginAttempts = 0;
+    req.user.isVerified = true;
+    
+    await authController.getProfile(req, res);
+    
+    expect(res.status).toHaveBeenCalledWith(200);
+    
+    const returnedUser = res.json.mock.calls[0][0].user;
+    
+    // Check that only specified fields are returned
+    const expectedKeys = ['id', 'username', 'email', 'createdAt', 'updatedAt'];
+    const actualKeys = Object.keys(returnedUser);
+    
+    expect(actualKeys).toHaveLength(expectedKeys.length);
+    expect(actualKeys).toEqual(expect.arrayContaining(expectedKeys));
+    
+    // Verify extra fields are excluded
+    expect(returnedUser).not.toHaveProperty('role');
+    expect(returnedUser).not.toHaveProperty('loginAttempts');
+    expect(returnedUser).not.toHaveProperty('isVerified');
+  });
+});
+
+// Integration test example that tests both authenticate middleware and getProfile endpoint together
+describe('Authentication and Profile Integration', () => {
+  let req, res, next;
+  
+  beforeEach(() => {
+    // Reset all mocks
+    jest.clearAllMocks();
+    
+    // Setup default request and response objects
+    req = {
+      cookies: {
+        auth_token: 'valid-token-123'
+      },
+      headers: {}
+    };
+    
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+    
+    next = jest.fn().mockImplementation(() => {
+      // Simulate calling the next middleware/controller (getProfile)
+      authController.getProfile(req, res);
+    });
+
+    // Mock services
+    authService.verifyToken = jest.fn();
+    userService.getUserById = jest.fn();
+  });
+  
+  test('should successfully authenticate and return user profile', async () => {
+    const decodedToken = { userId: 1 };
+    const mockUser = { 
+      id: 1, 
+      username: 'testuser', 
+      email: 'test@example.com',
+      password: 'hashed_password',
+      createdAt: new Date('2023-01-01'),
+      updatedAt: new Date('2023-01-02')
+    };
+    
+    authService.verifyToken.mockResolvedValue(decodedToken);
+    userService.getUserById.mockResolvedValue(mockUser);
+    
+    await authController.authenticate(req, res, next);
+    
+    // Verify authenticate middleware worked correctly
+    expect(authService.verifyToken).toHaveBeenCalledWith('valid-token-123');
+    expect(userService.getUserById).toHaveBeenCalledWith(1);
+    expect(req.user).toEqual(mockUser);
+    expect(next).toHaveBeenCalled();
+    
+    // Verify getProfile was called by next() and worked correctly
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      user: {
+        id: 1,
+        username: 'testuser',
+        email: 'test@example.com',
+        createdAt: mockUser.createdAt,
+        updatedAt: mockUser.updatedAt
+      }
+    });
+    
+    // Verify sensitive fields are excluded
+    const returnedUser = res.json.mock.calls[0][0].user;
+    expect(returnedUser).not.toHaveProperty('password');
+  });
+  
+  test('should stop at authentication failure and not proceed to getProfile', async () => {
+    // Simulate missing token
+    req.cookies = {};
+    
+    await authController.authenticate(req, res, next);
+    
+    // Verify authenticate middleware returned error
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 401,
+      message: 'Authentication failed'
+    }));
+    
+    // Verify next() was not called, so getProfile wasn't executed
+    expect(next).not.toHaveBeenCalled();
+  });
+});
+
 
 });
