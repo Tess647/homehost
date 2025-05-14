@@ -174,11 +174,14 @@ async function register(req, res) {
       const token = authService.generateToken(user.id);
       
       // Set token in cookie with httpOnly flag
-      res.cookie('auth_token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-      });
+// In both register and login handlers, update cookie settings:
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax', // More flexible than 'strict'
+      maxAge: 24 * 60 * 60 * 1000,
+      domain: process.env.COOKIE_DOMAIN || 'localhost' // Add this line
+    });
       
       // Return successful response
       return res.status(201).json({ 
@@ -244,10 +247,13 @@ async function login(req, res) {
       const token = authService.generateToken(user.id);
       
       // Set token in cookie with httpOnly flag
+      // In both register and login handlers, update cookie settings:
       res.cookie('auth_token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        sameSite: 'lax', // More flexible than 'strict'
+        maxAge: 24 * 60 * 60 * 1000,
+        domain: process.env.COOKIE_DOMAIN || 'localhost' // Add this line
       });
       
       // Return successful response
