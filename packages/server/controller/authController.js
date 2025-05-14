@@ -13,6 +13,21 @@ function isValidEmail(email) {
 }
 
 /**
+ * Standardized error response format
+ * @param {number} status - HTTP status code
+ * @param {string} message - Error message
+ * @param {Array} errors - Array of specific error details
+ * @returns {Object} Formatted error response
+ */
+function formatErrorResponse(status, message, errors = []) {
+  return {
+    status,
+    message,
+    errors
+  };
+}
+
+/**
  * Handles user registration
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -53,7 +68,7 @@ async function register(req, res) {
 
     // Return validation errors if any
     if (errors.length > 0) {
-      return res.status(400).json({ errors });
+      return res.status(400).json(formatErrorResponse(400, 'Validation failed', errors));
     }
 
     // Attempt to create user
@@ -62,6 +77,13 @@ async function register(req, res) {
       
       // Generate JWT token
       const token = authService.generateToken(user.id);
+      
+      // Set token in cookie with httpOnly flag
+      res.cookie('auth_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      });
       
       // Return successful response
       return res.status(201).json({ 
@@ -75,9 +97,9 @@ async function register(req, res) {
     } catch (error) {
       // Handle duplicate email
       if (error.message === 'Email already in use') {
-        return res.status(400).json({ 
-          errors: [{ field: 'email', message: 'Email already in use' }]
-        });
+        return res.status(400).json(formatErrorResponse(400, 'Validation failed', [
+          { field: 'email', message: 'Email already in use' }
+        ]));
       }
       
       // Re-throw other errors to be caught by the outer catch block
@@ -85,9 +107,9 @@ async function register(req, res) {
     }
   } catch (error) {
     console.error('Registration error:', error);
-    return res.status(500).json({ 
-      errors: [{ field: 'general', message: 'Server error during registration' }]
-    });
+    return res.status(500).json(formatErrorResponse(500, 'Server error', [
+      { field: 'general', message: 'Server error during registration' }
+    ]));
   }
 }
 
@@ -116,7 +138,7 @@ async function login(req, res) {
 
     // Return validation errors if any
     if (errors.length > 0) {
-      return res.status(400).json({ errors });
+      return res.status(400).json(formatErrorResponse(400, 'Validation failed', errors));
     }
 
     try {
@@ -125,6 +147,13 @@ async function login(req, res) {
       
       // Generate JWT token
       const token = authService.generateToken(user.id);
+      
+      // Set token in cookie with httpOnly flag
+      res.cookie('auth_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      });
       
       // Return successful response
       return res.status(200).json({ 
@@ -138,9 +167,9 @@ async function login(req, res) {
     } catch (error) {
       // Handle invalid credentials
       if (error.message === 'Invalid credentials') {
-        return res.status(401).json({ 
-          errors: [{ field: 'general', message: 'Invalid email or password' }]
-        });
+        return res.status(401).json(formatErrorResponse(401, 'Authentication failed', [
+          { field: 'general', message: 'Invalid email or password' }
+        ]));
       }
       
       // Re-throw other errors to be caught by the outer catch block
@@ -148,14 +177,62 @@ async function login(req, res) {
     }
   } catch (error) {
     console.error('Login error:', error);
-    return res.status(500).json({ 
-      errors: [{ field: 'general', message: 'Server error during login' }]
+    return res.status(500).json(formatErrorResponse(500, 'Server error', [
+      { field: 'general', message: 'Server error during login' }
+    ]));
+  }
+}
+
+/**
+ * Handles user logout
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
+async function logout(req, res) {
+  try {
+    // Clear auth cookie
+    res.clearCookie('auth_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
     });
+
+    // Add token to blacklist (if applicable)
+    try {
+      // If token is in the request (Authorization header or cookie), add it to blacklist
+      const token = req.headers.authorization?.split(' ')[1] || req.cookies?.auth_token;
+      
+      if (token) {
+        await authService.invalidateToken(token);
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Successfully logged out'
+      });
+    } catch (error) {
+      // Even if token blacklisting fails, still consider the logout successful
+      // since we've cleared the client-side cookie
+      console.error('Token invalidation error:', error);
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Successfully logged out'
+      });
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json(formatErrorResponse(500, 'Server error', [
+      { field: 'general', message: 'Server error during logout' }
+    ]));
   }
 }
 
 module.exports = {
+  formatErrorResponse,
   register,
   login,
+  logout,
   isValidEmail // Exported for testing
 };
