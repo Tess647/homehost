@@ -100,9 +100,26 @@ const readStreamMpeg = (req, res, file_path) => {
 };
 
 // Authentication routes
-router.post('/api/register', authController.register);
-router.post('/api/login', authController.login);
-router.post('/api/logout', authController.logout);
+router.post('/register', authController.register);
+// router.post('/api/register', async (req, res) => {
+//   try {
+//     console.log("Received registration data:", req.body);
+//     // Manually create a test user without DB
+//     const testUser = {
+//       id: 999,
+//       email: req.body.email,
+//       username: req.body.username
+//     };
+//     return res.status(201).json({ user: testUser });
+//   } catch (error) {
+//     console.error("Simplified registration failed:", error);
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
+router.post('/login', authController.login);
+router.post('/logout', authController.logout);
+
+
 
 router.get('/api/about', (req, res) => {
   res.json(getAbout());
