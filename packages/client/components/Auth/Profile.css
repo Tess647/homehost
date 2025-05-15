@@ -1,0 +1,144 @@
+/* Profile.module.css - Styles for Profile component */
+
+/* Main container - matches auth forms styling */
+.profile-container {
+  max-width: 500px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #ffffff;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.profile-container h2 {
+  color: #2d3748;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* Profile card styling */
+.profile-card {
+  padding: 1rem 0;
+}
+
+/* Profile field styling */
+.profile-field {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.profile-field:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.profile-field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #4a5568;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.profile-value {
+  font-size: 1rem;
+  color: #2d3748;
+  padding: 0.5rem;
+  background-color: #f7fafc;
+  border-radius: 4px;
+}
+
+/* Profile actions */
+.profile-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  gap: 1rem;
+}
+
+/* Buttons - extends auth form button styles */
+.profile-actions button {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.submit-button {
+  background-color: #3182ce;
+  color: white;
+  border: none;
+}
+
+.submit-button:hover {
+  background-color: #2c5282;
+}
+
+.secondary-button {
+  background-color: white;
+  color: #3182ce;
+  border: 1px solid #3182ce;
+}
+
+.secondary-button:hover {
+  background-color: #ebf8ff;
+}
+
+/* Loading skeleton */
+.profile-skeleton {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.skeleton-label {
+  height: 1rem;
+  width: 30%;
+  background-color: #e2e8f0;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-value {
+  height: 1.5rem;
+  width: 80%;
+  background-color: #e2e8f0;
+  border-radius: 4px;
+}
+
+/* Error state */
+.server-error-container {
+  margin: 1rem 0;
+  padding: 0.75rem;
+  background-color: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 6px;
+}
+
+.server-error {
+  color: #e53e3e;
+  font-size: 0.875rem;
+  text-align: center;
+  margin: 0 0 1rem 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .profile-container {
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+  
+  .profile-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}

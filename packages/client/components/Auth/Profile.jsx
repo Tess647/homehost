@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import './Profile.css';
 
 /**
  * Profile component that displays user information
@@ -24,7 +25,7 @@ const Profile = ({ onLogout }) => {
         const response = await axios.get('/api/me');
         
         if (response.status === 200) {
-          setUserData(response.data);
+          setUserData(response.data.user);
         }
       } catch (error) {
         if (error.response?.status === 401) {
@@ -47,13 +48,13 @@ const Profile = ({ onLogout }) => {
   const handleLogout = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.post('/api/logout');
+      const response = await axios.post('/api/logout', {}, { withCredentials: true });
       
       if (response.status === 200) {
         if (onLogout) {
           onLogout();
         }
-        navigate('/login');
+      setTimeout(() => navigate('/login'), 500);
       }
     } catch (error) {
       setError('Failed to logout. Please try again.');
@@ -107,7 +108,7 @@ const Profile = ({ onLogout }) => {
           <div className="profile-field">
             <label className="form-label">Name</label>
             <div className="profile-value" data-testid="profile-name">
-              {userData.name}
+              {userData.username}
             </div>
           </div>
           

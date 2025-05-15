@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-
+import './Login.css';
 /**
  * Login component that provides authentication functionality
  * @param {Object} props - Component props
@@ -79,11 +79,12 @@ const Login = ({ onLoginSuccess }) => {
       }
     } catch (error) {
       setIsLoading(false);
-      if (error.response?.data?.message) {
-        setServerError(error.response.data.message);
-      } else {
-        setServerError('An error occurred during login. Please try again.');
-      }
+    if (error.response?.status === 401) {
+      setServerError('Invalid email or password. Please try again.');
+    } else {
+      console.error('Login error:', error);
+      setServerError('Service unavailable. Please try later.');
+    }
     }
   };
 

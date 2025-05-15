@@ -1,12 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-
 import App from './components/App';
-import { AppProvider } from './contexts/context';
+import { AllProviders } from './contexts/Providers';
 
 ReactDOM.render(
-  <AppProvider>
+  <AllProviders>
     <App />
-  </AppProvider>,
+  </AllProviders>,
   document.getElementById('root')
 );

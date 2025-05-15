@@ -44,7 +44,6 @@ async function getUserByEmail(email) {
       where: {
         email: {
           equals: normalizedEmail,
-          mode: 'insensitive'
         }
       },
     });
@@ -86,7 +85,6 @@ async function createUser(email, username, password) {
       where: {
         email: {
           equals: normalizedEmail,
-          mode: 'insensitive'
         }
       },
     });
@@ -139,7 +137,6 @@ async function verifyCredentials(email, password) {
       where: {
         email: {
           equals: normalizedEmail,
-          mode: 'insensitive'
         }
       },
     });

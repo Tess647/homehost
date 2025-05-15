@@ -123,26 +123,30 @@ function generateToken(userId, expiry = '1d') {
  * Verifies and decodes a JWT token
  * 
  * @param {string} token - The JWT token to verify
- * @returns {object} The decoded token payload
+ * @returns {Promise<object>} A promise that resolves to the decoded token payload
  * @throws {Error} If token is invalid, expired, or JWT_SECRET is not set
- * @throws {Error} If token verification fails for any reason
  */
 function verifyToken(token) {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET environment variable is not set');
-  }
-
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET);
-  } catch (error) {
-    if (error instanceof jwt.TokenExpiredError) {
-      throw new Error('Token has expired');
-    } else if (error instanceof jwt.JsonWebTokenError) {
-      throw new Error('Invalid token');
-    } else {
-      throw new Error(`Token verification failed: ${error.message}`);
+  return new Promise((resolve, reject) => {
+    if (!process.env.JWT_SECRET) {
+      reject(new Error('JWT_SECRET environment variable is not set'));
+      return;
     }
-  }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      if (err) {
+        if (err instanceof jwt.TokenExpiredError) {
+          reject(new Error('Token has expired'));
+        } else if (err instanceof jwt.JsonWebTokenError) {
+          reject(new Error('Invalid token'));
+        } else {
+          reject(new Error(`Token verification failed: ${err.message}`));
+        }
+      } else {
+        resolve(decoded);
+      }
+    });
+  });
 }
 
 /**

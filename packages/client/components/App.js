@@ -1,7 +1,17 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { SWRConfig } from 'swr';
 
+// Lazy loaded auth components
+const Login = lazy(() => import('./Auth/Login'));
+const Register = lazy(() => import('./Auth/Register'));
+const Profile = lazy(() => import('./Auth/Profile'));
+
+// Import protected route components
+import { ProtectedRoute, PublicOnlyRoute } from '../routes/ProtectedRoute';
+import LoadingSpinner from './LoadingSpinner';
+
+// Regular imports
 import Admin from './Admin';
 import AlbumDetail from './AlbumDetail/AlbumDetail';
 import Albums from './Albums/Albums';
@@ -28,8 +38,11 @@ const App = () => {
       >
         <BrowserRouter basename={process.env.PUBLIC_URL}>
           <Routes>
+            {/* Public Routes */}
             <Route path="/movies" element={<Movies />} />
             <Route path="/tv" element={<TVShows />} />
+            
+            {/* Music Routes */}
             <Route path="music" element={<Music />}>
               <Route index element={<MusicHome />} />
               <Route path="search" element={<MusicSearch />} />
@@ -39,7 +52,40 @@ const App = () => {
               <Route path="artists" element={<Artists />} />
               <Route path="songs" element={<Songs />} />
             </Route>
-            <Route path="/admin" element={<Admin />} />
+            
+            {/* Authentication Routes */}
+            <Route path="/login" element={
+              <PublicOnlyRoute redirectTo="/profile">
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Login />
+                </Suspense>
+              </PublicOnlyRoute>
+            } />
+            
+            <Route path="/register" element={
+              <PublicOnlyRoute redirectTo="/profile">
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Register />
+                </Suspense>
+              </PublicOnlyRoute>
+            } />
+            
+            {/* Protected Routes */}
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Profile />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <Admin />
+              </ProtectedRoute>
+            } />
+            
+            {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

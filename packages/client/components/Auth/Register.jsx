@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import './Register.css';
 
 /**
  * Register component that provides user registration functionality
@@ -11,7 +12,7 @@ import axios from 'axios';
  * @returns {JSX.Element} Registration form component
  */
 const Register = ({ onRegisterSuccess, showToast }) => {
-  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,7 +29,7 @@ const Register = ({ onRegisterSuccess, showToast }) => {
     const newErrors = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (!name.trim()) {
+    if (!username.trim()) {
       newErrors.name = 'Name is required';
     }
 
@@ -87,6 +88,7 @@ const Register = ({ onRegisterSuccess, showToast }) => {
    * @param {Event} e - Form submission event
    */
   const handleSubmit = async (e) => {
+    console.log("Form submitted!");
     e.preventDefault();
     setServerError('');
 
@@ -98,9 +100,15 @@ const Register = ({ onRegisterSuccess, showToast }) => {
 
     try {
       const response = await axios.post('/api/register', {
-        name,
+        username,
         email,
-        password
+        password,
+        confirmPassword
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+      },
+        withCredentials: true
       });
 
       setIsLoading(false);
@@ -129,36 +137,36 @@ const Register = ({ onRegisterSuccess, showToast }) => {
   return (
     <div className="login-container">
       <h2>Create Your Account</h2>
-      <form onSubmit={handleSubmit} className="login-form" data-testid="register-form">
+      <form onSubmit={handleSubmit} className="login-form" data-testid="register-form" noValidate>
         <div className="form-group">
           <label htmlFor="name" className="form-label">
             Full Name
           </label>
           <input
             type="text"
-            id="name"
-            name="name"
-            value={name}
+            id="username"
+            name="username"
+            value={username}
             onChange={(e) => {
-              setName(e.target.value);
+              setUsername(e.target.value);
               // Clear name error when user starts typing
-              if (errors.name) {
+              if (errors.username) {
                 setErrors(prev => ({ ...prev, name: '' }));
               }
             }}
             onBlur={() => {
-              if (!name.trim()) {
-                setErrors(prev => ({ ...prev, name: 'Name is required' }));
+              if (!username.trim()) {
+                setErrors(prev => ({ ...prev, username: 'Username is required' }));
               }
             }}
-            className={`form-input ${errors.name ? 'input-error' : ''}`}
+            className={`form-input ${errors.username ? 'input-error' : ''}`}
             placeholder="Enter your full name"
-            aria-describedby={errors.name ? "name-error" : undefined}
+            aria-describedby={errors.username ? "name-error" : undefined}
             data-testid="name-input"
           />
-          {errors.name && (
+          {errors.username && (
             <span id="name-error" className="error-message" data-testid="name-error">
-              {errors.name}
+              {errors.username}
             </span>
           )}
         </div>

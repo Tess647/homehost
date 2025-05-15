@@ -3,6 +3,9 @@ const express = require('express');
 const figlet = require('figlet');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 require('dotenv').config();
 require('./jobs').fileWatcher();
@@ -10,37 +13,46 @@ require('./jobs').fileWatcher();
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Middleware Setup (ORDER MATTERS!)
-app.use(bodyParser.json()); // Parse JSON bodies
-app.use(cookieParser()); // Parse cookies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+prisma.$connect()
+  .then(() => console.log('Database connected'))
+  .catch(err => console.error('Connection error:', err));
 
-// CORS Middleware
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    process.env.CLIENT_BASE_URL,
-    'http://localhost:3000' // Add your frontend URL
-  ];
-  const origin = req.headers.origin;
-  
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  next();
-});
+// Middleware Setup
+app.use(bodyParser.json());
+app.use(cookieParser());
+app.use(express.urlencoded({ extended: true }));
 
-// Handle OPTIONS requests explicitly
-app.options('*', (req, res) => {
-  res.sendStatus(204); // No content
-});
+// Enhanced CORS Configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      process.env.CLIENT_BASE_URL,
+      'http://localhost:3000',
+      'http://127.0.0.1:3000'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+};
+
+app.use(cors(corsOptions)); // Use the cors package with options
 
 // Serve static files from React app in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
+  
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  });
 }
 
 // Include routes
@@ -50,30 +62,14 @@ app.use('/api', apiRouter);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).send('Something broke!');
+  
+  // Handle CORS errors
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({ error: 'CORS policy violation' });
+  }
+  
+  res.status(500).json({ error: 'Something broke!' });
 });
 
-// In server.js, modify the printRoutes function:
-function printRoutes() {
-  console.log('\nRegistered Routes:');
-  app._router.stack.forEach((middleware) => {
-    if (middleware.name === 'router') {
-      const path = middleware.regexp.toString()
-        .replace('/^\\', '')
-        .replace('\\/?$/', '')
-        .replace('(?=\\/|$)/i', '');
-      
-      middleware.handle.stack.forEach((handler) => {
-        if (handler.route) {
-          const methods = Object.keys(handler.route.methods).join(', ');
-          console.log(`${methods} -> ${path}${handler.route.path}`);
-        }
-      });
-    }
-  });
-}
-
 console.log(figlet.textSync('homehost'));
-printRoutes();
-
 app.listen(port, () => console.log(`Listening on port ${port}`));
